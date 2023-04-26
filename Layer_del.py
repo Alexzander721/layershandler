@@ -65,8 +65,7 @@ def universal(layer, catalog, ilst, fld, lst):
     lst.append(vlr)
     try:
         [vlr.dataProvider().changeAttributeValues(
-            {feature.id(): {vlr.dataProvider().fieldNameIndex(fld): ilst}}) for feature in
-            vlr.getFeatures()]
+            {feature.id(): {vlr.dataProvider().fieldNameIndex(fld): ilst}}) for feature in vlr.getFeatures()]
     except IndexError:
         pass
     return lst
@@ -201,7 +200,9 @@ class Delivery:
                 [self.field(layer) for layer in self.instance.mapLayers().values() if layer.type() == 0]
                 self.KCN(self.dlg.lineEdit.text())
                 self.OZU(self.dlg.lineEdit.text())
+                self.poligonlinesLES(self.dlg.lineEdit.text())
                 self.poligonlines(self.dlg.lineEdit.text())
+                self.infrlinesLES(self.dlg.lineEdit.text())
                 self.infrlines(self.dlg.lineEdit.text())
                 self.gidrolines(self.dlg.lineEdit.text())
                 self.gidroarea(self.dlg.lineEdit.text())
@@ -263,8 +264,8 @@ class Delivery:
                                                         layer.dataProvider().fieldNameIndex("KW"),
                                                         layer.dataProvider().fieldNameIndex("PVD")]))
                 self.createFilds(layer)
-            if layer.name() in ['КЦН', 'ОЗУ', 'Объекты инфраструктуры полигоны',
-                                'Объекты гидрологической сети полигоны']:
+            if layer.name() in ('КЦН', 'ОЗУ', 'Объекты лесной инфраструктуры полигоны',
+                                "Объекты нелесной инфраструктуры полигоны", 'Объекты гидрологической сети полигоны'):
                 layer.dataProvider().deleteAttributes(([layer.dataProvider().fieldNameIndex("AREA"),
                                                         layer.dataProvider().fieldNameIndex("VD"),
                                                         layer.dataProvider().fieldNameIndex("KW"),
@@ -274,7 +275,8 @@ class Delivery:
                                                         layer.dataProvider().fieldNameIndex("path")]))
                 self.createFilds(layer)
         if layer.geometryType() == 1:
-            if layer.name() == 'Объекты инфраструктуры линии' or layer.name() == 'Объекты гидрологической сети':
+            if layer.name() in ('Объекты лесной инфраструктуры линии', 'Объекты нелесной инфраструктуры линии',
+                                'Объекты гидрологической сети'):
                 layer.dataProvider().deleteAttributes(([layer.dataProvider().fieldNameIndex("AREA"),
                                                         layer.dataProvider().fieldNameIndex("VD"),
                                                         layer.dataProvider().fieldNameIndex("KW"),
@@ -299,7 +301,7 @@ class Delivery:
 
     def textbase(self, layer):
         """Перебор полей сведений об объекте"""
-        for fldname in ["Субъект", "Лесничеств", "Участковое", "Договор"]:
+        for fldname in ("Субъект", "Лесничеств", "Участковое", "Договор"):
             if fldname == "Субъект":
                 text = self.dlg.Subject.text()
                 change(layer, fldname, text)
@@ -321,12 +323,13 @@ class Delivery:
             if layer.type() == 0 and layer.geometryType() == 2:
                 [universal(layer, catalog, kcn[i], "Кат_защ", lst) for i in kcn.keys() if
                  i in layer.name().upper()]
+        if lst:
             processing.run("native:mergevectorlayers",
                            {'CRS': QgsCoordinateReferenceSystem('EPSG:4326'),
                             'LAYERS': lst,
                             'OUTPUT': f"{catalog}/готово/КЦН.shp"})
-        self.field(QgsVectorLayer(f"{catalog}/готово/КЦН.shp", "КЦН", "ogr"))
-        self.instance.addMapLayer(QgsVectorLayer(f"{catalog}/готово/КЦН.shp", "КЦН", "ogr"))
+            self.field(QgsVectorLayer(f"{catalog}/готово/КЦН.shp", "КЦН", "ogr"))
+            self.instance.addMapLayer(QgsVectorLayer(f"{catalog}/готово/КЦН.shp", "КЦН", "ogr"))
 
     def OZU(self, catalog):
         """Создание границ ОЗУ"""
@@ -334,34 +337,57 @@ class Delivery:
         for layer in self.instance.mapLayers().values():
             if layer.type() == 0 and layer.geometryType() == 2:
                 [universal(layer, catalog, ozu[i], "ОЗУ", lst) for i in ozu.keys() if i in layer.name().upper()]
+        if lst:
             processing.run("native:mergevectorlayers",
                            {'CRS': QgsCoordinateReferenceSystem('EPSG:4326'),
                             'LAYERS': lst,
                             'OUTPUT': f"{catalog}/готово/Границы особо защитных участков.shp"})
-        self.field(QgsVectorLayer(f"{catalog}/готово/Границы особо защитных участков.shp", "ОЗУ", "ogr"))
-        self.instance.addMapLayer(QgsVectorLayer(f"{catalog}/готово/Границы особо защитных участков.shp", "ОЗУ", "ogr"))
+            self.field(QgsVectorLayer(f"{catalog}/готово/Границы особо защитных участков.shp", "ОЗУ", "ogr"))
+            self.instance.addMapLayer(
+                QgsVectorLayer(f"{catalog}/готово/Границы особо защитных участков.shp", "ОЗУ", "ogr"))
 
-    def poligonlines(self, catalog):
-        """Объекты инфраструктуры полигоны"""
+    def poligonlinesLES(self, catalog):
+        """Объекты лесной инфраструктуры полигоны"""
         lst = []
         for layer in self.instance.mapLayers().values():
             if layer.name() in ["Границы квартальной сети", "Границы объекта работ", "Границы повыделенной сети"]:
                 pass
             else:
                 if layer.type() == 0 and layer.geometryType() == 2:
-                    [universal(layer, catalog, infr[i], "Кат_зем", lst)
-                     for i in infr.keys() if i in layer.name().upper()]
+                    [universal(layer, catalog, infrles[i], "Кат_зем", lst) for i in infrles.keys() if
+                     i in layer.name().upper()]
+        if lst:
             processing.run("native:mergevectorlayers",
                            {'CRS': QgsCoordinateReferenceSystem('EPSG:4326'),
                             'LAYERS': lst,
-                            'OUTPUT': f"{catalog}/готово/Объекты инфраструктуры полигоны.shp"})
-        self.field(QgsVectorLayer(f"{catalog}/готово/Объекты инфраструктуры полигоны.shp",
-                                  "Объекты инфраструктуры полигоны", "ogr"))
-        self.instance.addMapLayer(QgsVectorLayer(f"{catalog}/готово/Объекты инфраструктуры полигоны.shp",
-                                                 "Объекты инфраструктуры полигоны", "ogr"))
+                            'OUTPUT': f"{catalog}/готово/Объекты лесной инфраструктуры полигоны.shp"})
+            self.field(QgsVectorLayer(f"{catalog}/готово/Объекты лесной инфраструктуры полигоны.shp",
+                                      "Объекты лесной инфраструктуры полигоны", "ogr"))
+            self.instance.addMapLayer(QgsVectorLayer(f"{catalog}/готово/Объекты лесной инфраструктуры полигоны.shp",
+                                                     "Объекты лесной инфраструктуры полигоны", "ogr"))
 
-    def infrlines(self, catalog):
-        """Объекты инфраструктуры линии"""
+    def poligonlines(self, catalog):
+        """Объекты нелесной инфраструктуры полигоны"""
+        lst = []
+        for layer in self.instance.mapLayers().values():
+            if layer.name() in ["Границы квартальной сети", "Границы объекта работ", "Границы повыделенной сети"]:
+                pass
+            else:
+                if layer.type() == 0 and layer.geometryType() == 2:
+                    [universal(layer, catalog, infr[i], "Кат_зем", lst) for i in infr.keys() if
+                     i in layer.name().upper()]
+        if lst:
+            processing.run("native:mergevectorlayers",
+                           {'CRS': QgsCoordinateReferenceSystem('EPSG:4326'),
+                            'LAYERS': lst,
+                            'OUTPUT': f"{catalog}/готово/Объекты нелесной инфраструктуры полигоны.shp"})
+            self.field(QgsVectorLayer(f"{catalog}/готово/Объекты нелесной инфраструктуры полигоны.shp",
+                                      "Объекты нелесной инфраструктуры полигоны", "ogr"))
+            self.instance.addMapLayer(QgsVectorLayer(f"{catalog}/готово/Объекты нелесной инфраструктуры полигоны.shp",
+                                                     "Объекты нелесной инфраструктуры полигоны", "ogr"))
+
+    def infrlinesLES(self, catalog):
+        """Объекты лесной инфраструктуры линии"""
         lst = []
         for layer in self.instance.mapLayers().values():
             if layer.type() == 0 and layer.geometryType() == 1:
@@ -369,54 +395,77 @@ class Delivery:
                     universal(layer, catalog, "Квартальные просеки", "Кат_зем", lst)
                 if layer.name().upper() == "КВ ПРОСЕКИ ЕСТ" or layer.name().upper() == "КВ ПР ПО КАНАВАМ":
                     universal(layer, catalog, "Кв пр по естеств руб", "Кат_зем", lst)
-                [universal(layer, catalog, infr[i], "Кат_зем", lst) for i in infr.keys() if i in layer.name().upper()]
+                [universal(layer, catalog, infrles[i], "Кат_зем", lst) for i in infrles.keys() if
+                 i in layer.name().upper()]
+        if lst:
             processing.run("native:mergevectorlayers",
                            {'CRS': QgsCoordinateReferenceSystem('EPSG:4326'),
                             'LAYERS': lst,
-                            'OUTPUT': f"{catalog}/готово/Объекты инфраструктуры линии.shp"})
-        self.field(
-            QgsVectorLayer(f"{catalog}/готово/Объекты инфраструктуры линии.shp", "Объекты инфраструктуры линии", "ogr"))
-        self.instance.addMapLayer(
-            QgsVectorLayer(f"{catalog}/готово/Объекты инфраструктуры линии.shp", "Объекты инфраструктуры линии", "ogr"))
+                            'OUTPUT': f"{catalog}/готово/Объекты лесной инфраструктуры линии.shp"})
+            self.field(
+                QgsVectorLayer(f"{catalog}/готово/Объекты лесной инфраструктуры линии.shp",
+                               "Объекты лесной инфраструктуры линии", "ogr"))
+            self.instance.addMapLayer(QgsVectorLayer(f"{catalog}/готово/Объекты лесной инфраструктуры линии.shp",
+                                                     "Объекты лесной инфраструктуры линии", "ogr"))
+
+    def infrlines(self, catalog):
+        """Объекты нелесной инфраструктуры линии"""
+        lst = []
+        for layer in self.instance.mapLayers().values():
+            if layer.type() == 0 and layer.geometryType() == 1:
+                [universal(layer, catalog, infr[i], "Кат_зем", lst) for i in infr.keys() if i in layer.name().upper()]
+        if lst:
+            processing.run("native:mergevectorlayers",
+                           {'CRS': QgsCoordinateReferenceSystem('EPSG:4326'),
+                            'LAYERS': lst,
+                            'OUTPUT': f"{catalog}/готово/Объекты нелесной инфраструктуры линии.shp"})
+            self.field(
+                QgsVectorLayer(f"{catalog}/готово/Объекты нелесной инфраструктуры линии.shp",
+                               "Объекты нелесной инфраструктуры линии", "ogr"))
+            self.instance.addMapLayer(QgsVectorLayer(f"{catalog}/готово/Объекты нелесной инфраструктуры линии.shp",
+                                                     "Объекты нелесной инфраструктуры линии", "ogr"))
 
     def gidrolines(self, catalog):
         """Объекты гидрологической сети"""
         lst = []
         for layer in self.instance.mapLayers().values():
             if layer.type() == 0 and layer.geometryType() == 1:
-                [universal(layer, catalog, gidr[i], "Кат_зем", lst) for i in gidr.keys() if
-                 i in layer.name().upper()]
+                [universal(layer, catalog, gidr[i], "Кат_зем", lst) for i in gidr.keys() if i in layer.name().upper()]
+        if lst:
             processing.run("native:mergevectorlayers",
                            {'CRS': QgsCoordinateReferenceSystem('EPSG:4326'),
                             'LAYERS': lst,
                             'OUTPUT': f"{catalog}/готово/Объекты гидрологической сети.shp"})
-        self.field(
-            QgsVectorLayer(f"{catalog}/готово/Объекты гидрологической сети.shp", "Объекты гидрологической сети", "ogr"))
-        self.instance.addMapLayer(
-            QgsVectorLayer(f"{catalog}/готово/Объекты гидрологической сети.shp", "Объекты гидрологической сети", "ogr"))
+            self.field(
+                QgsVectorLayer(f"{catalog}/готово/Объекты гидрологической сети.shp", "Объекты гидрологической сети",
+                               "ogr"))
+            self.instance.addMapLayer(
+                QgsVectorLayer(f"{catalog}/готово/Объекты гидрологической сети.shp", "Объекты гидрологической сети",
+                               "ogr"))
 
     def gidroarea(self, catalog):
         """Объекты гидрологической сети полигональные"""
         lst = []
         for layer in self.instance.mapLayers().values():
             if layer.type() == 0 and layer.geometryType() == 2:
-                [universal(layer, catalog, gidr[i], "Кат_зем", lst) for i in gidr.keys() if
-                 i in layer.name().upper()]
+                [universal(layer, catalog, gidr[i], "Кат_зем", lst) for i in gidr.keys() if i in layer.name().upper()]
+        if lst:
             processing.run("native:mergevectorlayers",
                            {'CRS': QgsCoordinateReferenceSystem('EPSG:4326'),
                             'LAYERS': lst,
                             'OUTPUT': f"{catalog}/готово/Объекты гидрологической сети полигоны.shp"})
-        self.field(QgsVectorLayer(f"{catalog}/готово/Объекты гидрологической сети полигоны.shp",
-                                  "Объекты гидрологической сети полигоны", "ogr"))
-        self.instance.addMapLayer(QgsVectorLayer(f"{catalog}/готово/Объекты гидрологической сети полигоны.shp",
-                                                 "Объекты гидрологической сети полигоны", "ogr"))
+            self.field(QgsVectorLayer(f"{catalog}/готово/Объекты гидрологической сети полигоны.shp",
+                                      "Объекты гидрологической сети полигоны", "ogr"))
+            self.instance.addMapLayer(QgsVectorLayer(f"{catalog}/готово/Объекты гидрологической сети полигоны.shp",
+                                                     "Объекты гидрологической сети полигоны", "ogr"))
 
     def lines(self, catalog):
         """Объеденение линейных слоёв"""
         processing.run("native:mergevectorlayers",
                        {'CRS': QgsCoordinateReferenceSystem('EPSG:4326'),
                         'LAYERS': [f"{catalog}/готово/Объекты гидрологической сети.shp",
-                                   f"{catalog}/готово/Объекты инфраструктуры линии.shp"],
+                                   f"{catalog}/готово/Объекты лесной инфраструктуры линии.shp",
+                                   f"{catalog}/готово/Объекты нелесной инфраструктуры линии.shp"],
                         'OUTPUT': f"{catalog}/готово/Линейные объекты.shp"})
         self.field(QgsVectorLayer(f"{catalog}/готово/Линейные объекты.shp", "Линейные объекты", "ogr"))
         self.instance.addMapLayer(QgsVectorLayer(f"{catalog}/готово/Линейные объекты.shp", "Линейные объекты", "ogr"))
