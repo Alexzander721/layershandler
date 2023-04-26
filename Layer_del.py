@@ -204,6 +204,7 @@ class Delivery:
                 self.poligonlines(self.dlg.lineEdit.text())
                 self.infrlines(self.dlg.lineEdit.text())
                 self.gidrolines(self.dlg.lineEdit.text())
+                self.gidroarea(self.dlg.lineEdit.text())
                 self.lines(self.dlg.lineEdit.text())
                 message("Готово!", f"Результирующие слои сохранены в папке: {self.dlg.lineEdit.text()}/готово/")
                 self.dlg.close()
@@ -262,7 +263,8 @@ class Delivery:
                                                         layer.dataProvider().fieldNameIndex("KW"),
                                                         layer.dataProvider().fieldNameIndex("PVD")]))
                 self.createFilds(layer)
-            if layer.name() == 'КЦН' or layer.name() == 'ОЗУ' or layer.name() == 'Объекты инфраструктуры полигоны':
+            if layer.name() in ['КЦН', 'ОЗУ', 'Объекты инфраструктуры полигоны',
+                                'Объекты гидрологической сети полигоны']:
                 layer.dataProvider().deleteAttributes(([layer.dataProvider().fieldNameIndex("AREA"),
                                                         layer.dataProvider().fieldNameIndex("VD"),
                                                         layer.dataProvider().fieldNameIndex("KW"),
@@ -367,8 +369,7 @@ class Delivery:
                     universal(layer, catalog, "Квартальные просеки", "Кат_зем", lst)
                 if layer.name().upper() == "КВ ПРОСЕКИ ЕСТ" or layer.name().upper() == "КВ ПР ПО КАНАВАМ":
                     universal(layer, catalog, "Кв пр по естеств руб", "Кат_зем", lst)
-                [universal(layer, catalog, infr[i], "Кат_зем", lst) for i in infr.keys() if
-                 i in layer.name().upper()]
+                [universal(layer, catalog, infr[i], "Кат_зем", lst) for i in infr.keys() if i in layer.name().upper()]
             processing.run("native:mergevectorlayers",
                            {'CRS': QgsCoordinateReferenceSystem('EPSG:4326'),
                             'LAYERS': lst,
@@ -393,6 +394,22 @@ class Delivery:
             QgsVectorLayer(f"{catalog}/готово/Объекты гидрологической сети.shp", "Объекты гидрологической сети", "ogr"))
         self.instance.addMapLayer(
             QgsVectorLayer(f"{catalog}/готово/Объекты гидрологической сети.shp", "Объекты гидрологической сети", "ogr"))
+
+    def gidroarea(self, catalog):
+        """Объекты гидрологической сети полигональные"""
+        lst = []
+        for layer in self.instance.mapLayers().values():
+            if layer.type() == 0 and layer.geometryType() == 2:
+                [universal(layer, catalog, gidr[i], "Кат_зем", lst) for i in gidr.keys() if
+                 i in layer.name().upper()]
+            processing.run("native:mergevectorlayers",
+                           {'CRS': QgsCoordinateReferenceSystem('EPSG:4326'),
+                            'LAYERS': lst,
+                            'OUTPUT': f"{catalog}/готово/Объекты гидрологической сети полигоны.shp"})
+        self.field(QgsVectorLayer(f"{catalog}/готово/Объекты гидрологической сети полигоны.shp",
+                                  "Объекты гидрологической сети полигоны", "ogr"))
+        self.instance.addMapLayer(QgsVectorLayer(f"{catalog}/готово/Объекты гидрологической сети полигоны.shp",
+                                                 "Объекты гидрологической сети полигоны", "ogr"))
 
     def lines(self, catalog):
         """Объеденение линейных слоёв"""
