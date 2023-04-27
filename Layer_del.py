@@ -159,6 +159,8 @@ class Delivery:
         self.dlg.toolButton.clicked.connect(self.dct)
         self.dlg.OK.clicked.connect(self.apply)
         self.dlg.Cancel.clicked.connect(self.cancel)
+        [self.set_crs(layer) for layer in self.instance.mapLayers().values()
+         if layer.type() == 0 and layer.geometryType() == 2]
         self.choice_layer()
         self.dlg.show()
 
@@ -166,7 +168,7 @@ class Delivery:
         """Выбор слоя"""
         self.dlg.comboBox.clear()
         [self.dlg.comboBox.addItem(layer.name(), layer) for layer in self.instance.mapLayers().values()
-         if layer.type() == 0 and layer.geometryType() == 2]
+         if layer.type() == 0 and layer.geometryType() == 2 and "ВЫДЕЛ" in layer.name().upper()]
 
     def apply(self):
         """Запуск алгоритмов обработки, проверка на ошибки"""
@@ -469,6 +471,10 @@ class Delivery:
                         'OUTPUT': f"{catalog}/готово/Линейные объекты.shp"})
         self.field(QgsVectorLayer(f"{catalog}/готово/Линейные объекты.shp", "Линейные объекты", "ogr"))
         self.instance.addMapLayer(QgsVectorLayer(f"{catalog}/готово/Линейные объекты.shp", "Линейные объекты", "ogr"))
+
+    def set_crs(self, layer):
+        """Установка для слоёв MIF СК WGS84"""
+        layer.setCrs(QgsCoordinateReferenceSystem('EPSG:4326')), layer.triggerRepaint()
 
     def dct(self):
         """Выбор каталога сохранения"""
