@@ -159,9 +159,9 @@ class Delivery:
         self.dlg.toolButton.clicked.connect(self.dct)
         self.dlg.OK.clicked.connect(self.apply)
         self.dlg.Cancel.clicked.connect(self.cancel)
-        [self.set_crs(layer) for layer in self.instance.mapLayers().values()
-         if layer.type() == 0 and layer.geometryType() == 2]
+        [self.set_crs(layer) for layer in self.instance.mapLayers().values() if layer.type() == 0]
         self.choice_layer()
+        self.values()
         self.dlg.show()
 
     def choice_layer(self):
@@ -171,6 +171,7 @@ class Delivery:
          if layer.type() == 0 and layer.geometryType() == 2 and "ВЫДЕЛ" in layer.name().upper()]
 
     def apply(self):
+        linelayer = []
         """Запуск алгоритмов обработки, проверка на ошибки"""
         if not self.dlg.Contract.text().strip():
             message("Ошибка!", f"Поле {self.dlg.label_2.text()} не заполнено!")
@@ -184,6 +185,7 @@ class Delivery:
             if not self.dlg.lineEdit.text():
                 message("Ошибка!", "Папка назначения не задана!")
             if self.dlg.lineEdit.text():
+                self.write()
                 os.mkdir(f"{self.dlg.lineEdit.text()}/готово/")
                 self.borders()
                 [self.saveSHP(self.dlg.lineEdit.text(), layer)
@@ -204,11 +206,11 @@ class Delivery:
                 self.OZU(self.dlg.lineEdit.text())
                 self.poligonlinesLES(self.dlg.lineEdit.text())
                 self.poligonlines(self.dlg.lineEdit.text())
-                self.infrlinesLES(self.dlg.lineEdit.text())
-                self.infrlines(self.dlg.lineEdit.text())
-                self.gidrolines(self.dlg.lineEdit.text())
+                self.infrlinesLES(self.dlg.lineEdit.text(), linelayer)
+                self.infrlines(self.dlg.lineEdit.text(), linelayer)
+                self.gidrolines(self.dlg.lineEdit.text(), linelayer)
                 self.gidroarea(self.dlg.lineEdit.text())
-                self.lines(self.dlg.lineEdit.text())
+                self.lines(self.dlg.lineEdit.text(), linelayer)
                 message("Готово!", f"Результирующие слои сохранены в папке: {self.dlg.lineEdit.text()}/готово/")
                 self.dlg.close()
 
@@ -388,7 +390,7 @@ class Delivery:
             self.instance.addMapLayer(QgsVectorLayer(f"{catalog}/готово/Объекты нелесной инфраструктуры полигоны.shp",
                                                      "Объекты нелесной инфраструктуры полигоны", "ogr"))
 
-    def infrlinesLES(self, catalog):
+    def infrlinesLES(self, catalog, linelayer):
         """Объекты лесной инфраструктуры линии"""
         lst = []
         for layer in self.instance.mapLayers().values():
@@ -409,8 +411,10 @@ class Delivery:
                                "Объекты лесной инфраструктуры линии", "ogr"))
             self.instance.addMapLayer(QgsVectorLayer(f"{catalog}/готово/Объекты лесной инфраструктуры линии.shp",
                                                      "Объекты лесной инфраструктуры линии", "ogr"))
+            linelayer.append(f"{catalog}/готово/Объекты лесной инфраструктуры линии.shp")
+            return linelayer
 
-    def infrlines(self, catalog):
+    def infrlines(self, catalog, linelayer):
         """Объекты нелесной инфраструктуры линии"""
         lst = []
         for layer in self.instance.mapLayers().values():
@@ -426,8 +430,10 @@ class Delivery:
                                "Объекты нелесной инфраструктуры линии", "ogr"))
             self.instance.addMapLayer(QgsVectorLayer(f"{catalog}/готово/Объекты нелесной инфраструктуры линии.shp",
                                                      "Объекты нелесной инфраструктуры линии", "ogr"))
+            linelayer.append(f"{catalog}/готово/Объекты нелесной инфраструктуры линии.shp")
+            return linelayer
 
-    def gidrolines(self, catalog):
+    def gidrolines(self, catalog, linelayer):
         """Объекты гидрологической сети"""
         lst = []
         for layer in self.instance.mapLayers().values():
@@ -444,6 +450,8 @@ class Delivery:
             self.instance.addMapLayer(
                 QgsVectorLayer(f"{catalog}/готово/Объекты гидрологической сети.shp", "Объекты гидрологической сети",
                                "ogr"))
+            linelayer.append(f"{catalog}/готово/Объекты гидрологической сети.shp")
+            return linelayer
 
     def gidroarea(self, catalog):
         """Объекты гидрологической сети полигональные"""
@@ -461,13 +469,11 @@ class Delivery:
             self.instance.addMapLayer(QgsVectorLayer(f"{catalog}/готово/Объекты гидрологической сети полигоны.shp",
                                                      "Объекты гидрологической сети полигоны", "ogr"))
 
-    def lines(self, catalog):
+    def lines(self, catalog, linelayer):
         """Объеденение линейных слоёв"""
         processing.run("native:mergevectorlayers",
                        {'CRS': QgsCoordinateReferenceSystem('EPSG:4326'),
-                        'LAYERS': [f"{catalog}/готово/Объекты гидрологической сети.shp",
-                                   f"{catalog}/готово/Объекты лесной инфраструктуры линии.shp",
-                                   f"{catalog}/готово/Объекты нелесной инфраструктуры линии.shp"],
+                        'LAYERS': linelayer,
                         'OUTPUT': f"{catalog}/готово/Линейные объекты.shp"})
         self.field(QgsVectorLayer(f"{catalog}/готово/Линейные объекты.shp", "Линейные объекты", "ogr"))
         self.instance.addMapLayer(QgsVectorLayer(f"{catalog}/готово/Линейные объекты.shp", "Линейные объекты", "ogr"))
@@ -475,6 +481,56 @@ class Delivery:
     def set_crs(self, layer):
         """Установка для слоёв MIF СК WGS84"""
         layer.setCrs(QgsCoordinateReferenceSystem('EPSG:4326')), layer.triggerRepaint()
+
+    def write(self):
+        with open(f"{self.plugin_dir}/values.tmp", 'w', encoding='cp1251') as file:
+            file.writelines(
+                [f"{self.dlg.Contract.text()}\n",
+                 f"{self.dlg.checkBox_1.isChecked()}\n",
+                 f"{self.dlg.Subject.text()}\n",
+                 f"{self.dlg.checkBox_2.isChecked()}\n",
+                 f"{self.dlg.Forestry.text()}\n",
+                 f"{self.dlg.checkBox_3.isChecked()}\n",
+                 f"{self.dlg.District.text()}\n",
+                 f"{self.dlg.checkBox_4.isChecked()}"])
+
+    def values(self):
+        self.dlg.Contract.clear(), self.dlg.Subject.clear(), self.dlg.Forestry.clear(), self.dlg.District.clear()
+        if os.path.exists(f"{self.plugin_dir}/values.tmp") and os.stat(f"{self.plugin_dir}/values.tmp").st_size != 0:
+            with open(f"{self.plugin_dir}/values.tmp", 'r', encoding='cp1251') as file:
+                text = file.readlines()
+                if text[1][:-1] == str(True):
+                    self.dlg.checkBox_1.setChecked(True)
+                    self.dlg.Contract.setText(text[0][:-1])
+                else:
+                    self.dlg.checkBox_1.setChecked(False)
+                if text[3][:-1] == str(True):
+                    self.dlg.checkBox_2.setChecked(True)
+                    self.dlg.Subject.setText(text[2][:-1])
+                else:
+                    self.dlg.checkBox_2.setChecked(False)
+                if text[5][:-1] == str(True):
+                    self.dlg.checkBox_3.setChecked(True)
+                    self.dlg.Forestry.setText(text[4][:-1])
+                else:
+                    self.dlg.checkBox_3.setChecked(False)
+                if text[7] == str(True):
+                    self.dlg.checkBox_4.setChecked(True)
+                    self.dlg.District.setText(text[6][:-1])
+                else:
+                    self.dlg.checkBox_4.setChecked(False)
+        elif not os.path.exists(
+                f"{self.plugin_dir}/values.tmp") or os.stat(f"{self.plugin_dir}/values.tmp").st_size == 0:
+            with open(f"{self.plugin_dir}/values.tmp", 'w', encoding='cp1251') as file:
+                file.writelines(
+                    ["Введите значение\n",
+                     f"{self.dlg.checkBox_1.isChecked()}\n",
+                     "Введите значение\n",
+                     f"{self.dlg.checkBox_2.isChecked()}\n",
+                     "Введите значение\n",
+                     f"{self.dlg.checkBox_3.isChecked()}\n",
+                     "Введите значение\n",
+                     f"{self.dlg.checkBox_4.isChecked()}"])
 
     def dct(self):
         """Выбор каталога сохранения"""
