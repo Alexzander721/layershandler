@@ -14,7 +14,9 @@
 """
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, QVariant
 from qgis.PyQt.QtGui import QIcon
-from qgis.PyQt.QtWidgets import QAction, QFileDialog, QMessageBox
+from PyQt5 import QtWidgets
+from PyQt5.QtCore import Qt
+from qgis.PyQt.QtWidgets import QAction, QFileDialog, QMessageBox, QCheckBox
 import processing
 from qgis.core import (QgsApplication,
                        QgsProject,
@@ -155,12 +157,18 @@ class Delivery:
     def run(self):
         """Запуск основных процессов"""
         self.dlg = DeliveryDialog()
+        self.Projection = self.dlg.mQgsProjectionSelectionWidget
         self.dlg.lineEdit.clear()
         self.dlg.toolButton.clicked.connect(self.dct)
         self.dlg.OK.clicked.connect(self.apply)
         self.dlg.Cancel.clicked.connect(self.cancel)
+        self.dlg.exportAll.clicked.connect(self.list_layer)
         [self.set_crs(layer) for layer in self.instance.mapLayers().values() if layer.type() == 0]
+        self.Projection.setCrs(self.instance.crs())
+        self.dlg.tabWidget.setCurrentIndex(0)
+        self.dlg.Shape.setChecked(True)
         self.choice_layer()
+        self.list_layer()
         self.values()
         self.dlg.show()
 
@@ -170,48 +178,73 @@ class Delivery:
         [self.dlg.comboBox.addItem(layer.name(), layer) for layer in self.instance.mapLayers().values()
          if layer.type() == 0 and layer.geometryType() == 2 and "ВЫДЕЛ" in layer.name().upper()]
 
+    def list_layer(self):
+        "Заполнение listWidget слоями"
+        self.dlg.listWidget.clear()
+        for layer in self.instance.mapLayers().values():
+            if layer.type() == 0:
+                item = QtWidgets.QListWidgetItem(layer.name())
+                item.setData(QtCore.Qt.ToolTipRole, layer)
+                item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
+                self.dlg.listWidget.addItem(item)
+                if not self.dlg.exportAll.isChecked():
+                    item.setCheckState(Qt.Unchecked)
+                elif self.dlg.exportAll.isChecked():
+                    item.setCheckState(Qt.Checked)
+
     def apply(self):
-        linelayer = []
         """Запуск алгоритмов обработки, проверка на ошибки"""
-        if not self.dlg.Contract.text().strip():
-            message("Ошибка!", f"Поле {self.dlg.label_2.text()} не заполнено!")
-        if not self.dlg.Subject.text().strip():
-            message("Ошибка!", f"Поле {self.dlg.label_4.text()} не заполнено!")
-        if not self.dlg.Forestry.text().strip():
-            message("Ошибка!", f"Поле {self.dlg.label_5.text()} не заполнено!")
-        if not self.dlg.District.text().strip():
-            message("Ошибка!", f"Поле {self.dlg.label_6.text()} не заполнено!")
-        else:
+        linelayer = []
+        # group = self.instance.layerTreeRoot().addGroup('Готовые слои')
+        if self.dlg.tabWidget.currentIndex() == 0:
+            if not self.dlg.Contract.text().strip():
+                message("Ошибка!", f"Поле {self.dlg.label_2.text()} не заполнено!")
+            if not self.dlg.Subject.text().strip():
+                message("Ошибка!", f"Поле {self.dlg.label_4.text()} не заполнено!")
+            if not self.dlg.Forestry.text().strip():
+                message("Ошибка!", f"Поле {self.dlg.label_5.text()} не заполнено!")
+            if not self.dlg.District.text().strip():
+                message("Ошибка!", f"Поле {self.dlg.label_6.text()} не заполнено!")
+            else:
+                if not self.dlg.lineEdit.text():
+                    message("Ошибка!", "Папка назначения не задана!")
+                elif self.dlg.lineEdit.text():
+                    self.write()
+                    os.mkdir(f"{self.dlg.lineEdit.text()}/готово/")
+                    self.borders()
+                    [self.saveSHP(self.dlg.lineEdit.text(), layer)
+                     for layer in self.iface.mapCanvas().layers() if layer.type() == 0]
+                    [self.remove(self.dlg.lineEdit.text(), layer)
+                     for layer in self.iface.mapCanvas().layers() if layer.type() == 0]
+                    self.instance.addMapLayer(
+                        QgsVectorLayer(f"{self.dlg.lineEdit.text()}/готово/Границы квартальной сети.shp",
+                                       "Границы квартальной сети", "ogr"))
+                    self.instance.addMapLayer(
+                        QgsVectorLayer(f"{self.dlg.lineEdit.text()}/готово/Границы объекта работ.shp",
+                                       "Границы объекта работ", "ogr"))
+                    self.instance.addMapLayer(
+                        QgsVectorLayer(f"{self.dlg.lineEdit.text()}/готово/Границы повыделенной сети.shp",
+                                       "Границы повыделенной сети", "ogr"))
+                    [self.field(layer) for layer in self.instance.mapLayers().values() if layer.type() == 0]
+                    self.KCN(self.dlg.lineEdit.text())
+                    self.OZU(self.dlg.lineEdit.text())
+                    self.poligonlinesLES(self.dlg.lineEdit.text())
+                    self.poligonlines(self.dlg.lineEdit.text())
+                    self.infrlinesLES(self.dlg.lineEdit.text(), linelayer)
+                    self.infrlines(self.dlg.lineEdit.text(), linelayer)
+                    self.gidrolines(self.dlg.lineEdit.text(), linelayer)
+                    self.gidroarea(self.dlg.lineEdit.text())
+                    self.lines(self.dlg.lineEdit.text(), linelayer)
+                    message("Готово!", f"Результирующие слои сохранены в папке: {self.dlg.lineEdit.text()}/готово/")
+                    self.dlg.close()
+        elif self.dlg.tabWidget.currentIndex() == 1:
             if not self.dlg.lineEdit.text():
                 message("Ошибка!", "Папка назначения не задана!")
-            if self.dlg.lineEdit.text():
-                self.write()
-                os.mkdir(f"{self.dlg.lineEdit.text()}/готово/")
-                self.borders()
-                [self.saveSHP(self.dlg.lineEdit.text(), layer)
-                 for layer in self.iface.mapCanvas().layers() if layer.type() == 0]
-                [self.remove(self.dlg.lineEdit.text(), layer)
-                 for layer in self.iface.mapCanvas().layers() if layer.type() == 0]
-                self.instance.addMapLayer(
-                    QgsVectorLayer(f"{self.dlg.lineEdit.text()}/готово/Границы квартальной сети.shp",
-                                   "Границы квартальной сети", "ogr"))
-                self.instance.addMapLayer(
-                    QgsVectorLayer(f"{self.dlg.lineEdit.text()}/готово/Границы объекта работ.shp",
-                                   "Границы объекта работ", "ogr"))
-                self.instance.addMapLayer(
-                    QgsVectorLayer(f"{self.dlg.lineEdit.text()}/готово/Границы повыделенной сети.shp",
-                                   "Границы повыделенной сети", "ogr"))
-                [self.field(layer) for layer in self.instance.mapLayers().values() if layer.type() == 0]
-                self.KCN(self.dlg.lineEdit.text())
-                self.OZU(self.dlg.lineEdit.text())
-                self.poligonlinesLES(self.dlg.lineEdit.text())
-                self.poligonlines(self.dlg.lineEdit.text())
-                self.infrlinesLES(self.dlg.lineEdit.text(), linelayer)
-                self.infrlines(self.dlg.lineEdit.text(), linelayer)
-                self.gidrolines(self.dlg.lineEdit.text(), linelayer)
-                self.gidroarea(self.dlg.lineEdit.text())
-                self.lines(self.dlg.lineEdit.text(), linelayer)
-                message("Готово!", f"Результирующие слои сохранены в папке: {self.dlg.lineEdit.text()}/готово/")
+            if not self.dlg.Shape.isChecked() and not self.dlg.MapInfo.isChecked() and not self.dlg.GeoPackage.isChecked():
+                message("Выберите тип файла!", "Не выбран тип выходного файла! (Shape, MapInfo, GeoPackage)")
+            elif self.dlg.lineEdit.text():
+                self.save(self.dlg.lineEdit.text())
+                message("Готово!", f"Результирующие слои сохранены в папке: {self.dlg.lineEdit.text()}")
                 self.dlg.close()
 
     def borders(self):
@@ -243,6 +276,74 @@ class Delivery:
                                                     QgsCoordinateReferenceSystem("EPSG:4326"),
                                                     QgsCoordinateReferenceSystem("EPSG:4326"),
                                                     self.instance), "ESRI Shapefile")
+
+    def save(self, catalog):
+        "сохранение слоёв"
+        cname = format(self.Projection.crs().description())
+        cname = cname.replace(" ", "").replace("/", "-")
+        if not os.path.exists(f"{catalog}/WGS84"):
+            os.mkdir(f"{catalog}/WGS84/")
+        if not os.path.exists(f"{catalog}/{cname}"):
+            os.mkdir(f"{catalog}/{cname}/")
+        if self.dlg.Shape.isChecked():
+            if not os.path.exists(f"{catalog}/WGS84/SHP"):
+                os.mkdir(f"{catalog}/WGS84/SHP")
+            if not os.path.exists(f"{catalog}/{cname}/SHP"):
+                os.mkdir(f"{catalog}/{cname}/SHP")
+        if self.dlg.MapInfo.isChecked():
+            if not os.path.exists(f"{catalog}/WGS84/MapInfo"):
+                os.mkdir(f"{catalog}/WGS84/MapInfo")
+            if not os.path.exists(f"{catalog}/{cname}/MapInfo"):
+                os.mkdir(f"{catalog}/{cname}/MapInfo")
+        if self.dlg.GeoPackage.isChecked():
+            if not os.path.exists(f"{catalog}/WGS84/GeoPackage"):
+                os.mkdir(f"{catalog}/WGS84/GeoPackage")
+            if not os.path.exists(f"{catalog}/{cname}/GeoPackage"):
+                os.mkdir(f"{catalog}/{cname}/GeoPackage")
+        for item in [self.dlg.listWidget.item(x) for x in range(self.dlg.listWidget.count())]:
+            if item.checkState() == 2:
+                if self.dlg.Shape.isChecked():
+                    QgsVectorFileWriter.writeAsVectorFormat(item.data(3),
+                                                            f"{catalog}/WGS84/SHP/{item.data(3).name()}.shp",
+                                                            'windows-1251',
+                                                            QgsCoordinateTransform(item.data(3).crs(),
+                                                                                   QgsCoordinateReferenceSystem(
+                                                                                       "EPSG:4326"), self.instance),
+                                                            "ESRI Shapefile")
+                    QgsVectorFileWriter.writeAsVectorFormat(item.data(3),
+                                                            f"{catalog}/{cname}/SHP/{item.data(3).name()}.shp",
+                                                            'windows-1251',
+                                                            QgsCoordinateTransform(item.data(3).crs(),
+                                                                                   self.Projection.crs(),
+                                                                                   self.instance), "ESRI Shapefile")
+                if self.dlg.MapInfo.isChecked():
+                    QgsVectorFileWriter.writeAsVectorFormat(item.data(3),
+                                                            f"{catalog}/WGS84/SHP/{item.data(3).name()}.TAB",
+                                                            'windows-1251',
+                                                            QgsCoordinateTransform(item.data(3).crs(),
+                                                                                   QgsCoordinateReferenceSystem(
+                                                                                       "EPSG:4326"), self.instance),
+                                                            "MapInfo File")
+                    QgsVectorFileWriter.writeAsVectorFormat(item.data(3),
+                                                            f"{catalog}/WGS84/SHP/{item.data(3).name()}.TAB",
+                                                            'windows-1251',
+                                                            QgsCoordinateTransform(item.data(3).crs(),
+                                                                                   self.Projection.crs(),
+                                                                                   self.instance), "MapInfo File")
+                if self.dlg.GeoPackage.isChecked():
+                    QgsVectorFileWriter.writeAsVectorFormat(item.data(3),
+                                                            f"{catalog}/WGS84/SHP/{item.data(3).name()}.gpkg",
+                                                            'windows-1251',
+                                                            QgsCoordinateTransform(item.data(3).crs(),
+                                                                                   QgsCoordinateReferenceSystem(
+                                                                                       "EPSG:4326"), self.instance),
+                                                            "GPKG")
+                    QgsVectorFileWriter.writeAsVectorFormat(item.data(3),
+                                                            f"{catalog}/WGS84/SHP/{item.data(3).name()}.gpkg",
+                                                            'windows-1251',
+                                                            QgsCoordinateTransform(item.data(3).crs(),
+                                                                                   self.Projection.crs(),
+                                                                                   self.instance), "GPKG")
 
     def remove(self, catalog, layer):
         """Удаление слоёв MIF открытие сохранёных SHP файлов"""
@@ -478,11 +579,16 @@ class Delivery:
         self.field(QgsVectorLayer(f"{catalog}/готово/Линейные объекты.shp", "Линейные объекты", "ogr"))
         self.instance.addMapLayer(QgsVectorLayer(f"{catalog}/готово/Линейные объекты.shp", "Линейные объекты", "ogr"))
 
+    def groop(self, layer):
+        root = QgsProject.instance().layerTreeRoot()
+        node_group1 = root.addGroup('Готовые слои')
+
     def set_crs(self, layer):
         """Установка для слоёв MIF СК WGS84"""
         layer.setCrs(QgsCoordinateReferenceSystem('EPSG:4326')), layer.triggerRepaint()
 
     def write(self):
+        "Запись значений в файл .tmp"
         with open(f"{self.plugin_dir}/values.tmp", 'w', encoding='cp1251') as file:
             file.writelines(
                 [f"{self.dlg.Contract.text()}\n",
@@ -495,6 +601,7 @@ class Delivery:
                  f"{self.dlg.checkBox_4.isChecked()}"])
 
     def values(self):
+        "Чтение и подстановка значений из файла .tmp"
         self.dlg.Contract.clear(), self.dlg.Subject.clear(), self.dlg.Forestry.clear(), self.dlg.District.clear()
         if os.path.exists(f"{self.plugin_dir}/values.tmp") and os.stat(f"{self.plugin_dir}/values.tmp").st_size != 0:
             with open(f"{self.plugin_dir}/values.tmp", 'r', encoding='cp1251') as file:
