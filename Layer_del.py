@@ -195,7 +195,6 @@ class Delivery:
     def apply(self):
         """Запуск алгоритмов обработки, проверка на ошибки"""
         linelayer = []
-        # group = self.instance.layerTreeRoot().addGroup('Готовые слои')
         if self.dlg.tabWidget.currentIndex() == 0:
             if not self.dlg.Contract.text().strip():
                 message("Ошибка!", f"Поле {self.dlg.label_2.text()} не заполнено!")
@@ -318,28 +317,28 @@ class Delivery:
                                                                                    self.instance), "ESRI Shapefile")
                 if self.dlg.MapInfo.isChecked():
                     QgsVectorFileWriter.writeAsVectorFormat(item.data(3),
-                                                            f"{catalog}/WGS84/SHP/{item.data(3).name()}.TAB",
+                                                            f"{catalog}/WGS84/MapInfo/{item.data(3).name()}.TAB",
                                                             'windows-1251',
                                                             QgsCoordinateTransform(item.data(3).crs(),
                                                                                    QgsCoordinateReferenceSystem(
                                                                                        "EPSG:4326"), self.instance),
                                                             "MapInfo File")
                     QgsVectorFileWriter.writeAsVectorFormat(item.data(3),
-                                                            f"{catalog}/WGS84/SHP/{item.data(3).name()}.TAB",
+                                                            f"{catalog}/WGS84/MapInfo/{item.data(3).name()}.TAB",
                                                             'windows-1251',
                                                             QgsCoordinateTransform(item.data(3).crs(),
                                                                                    self.Projection.crs(),
                                                                                    self.instance), "MapInfo File")
                 if self.dlg.GeoPackage.isChecked():
                     QgsVectorFileWriter.writeAsVectorFormat(item.data(3),
-                                                            f"{catalog}/WGS84/SHP/{item.data(3).name()}.gpkg",
+                                                            f"{catalog}/WGS84/GeoPackage/{item.data(3).name()}.gpkg",
                                                             'windows-1251',
                                                             QgsCoordinateTransform(item.data(3).crs(),
                                                                                    QgsCoordinateReferenceSystem(
                                                                                        "EPSG:4326"), self.instance),
                                                             "GPKG")
                     QgsVectorFileWriter.writeAsVectorFormat(item.data(3),
-                                                            f"{catalog}/WGS84/SHP/{item.data(3).name()}.gpkg",
+                                                            f"{catalog}/WGS84/GeoPackage/{item.data(3).name()}.gpkg",
                                                             'windows-1251',
                                                             QgsCoordinateTransform(item.data(3).crs(),
                                                                                    self.Projection.crs(),
@@ -578,10 +577,6 @@ class Delivery:
                         'OUTPUT': f"{catalog}/готово/Линейные объекты.shp"})
         self.field(QgsVectorLayer(f"{catalog}/готово/Линейные объекты.shp", "Линейные объекты", "ogr"))
         self.instance.addMapLayer(QgsVectorLayer(f"{catalog}/готово/Линейные объекты.shp", "Линейные объекты", "ogr"))
-
-    def groop(self, layer):
-        root = QgsProject.instance().layerTreeRoot()
-        node_group1 = root.addGroup('Готовые слои')
 
     def set_crs(self, layer):
         """Установка для слоёв MIF СК WGS84"""
