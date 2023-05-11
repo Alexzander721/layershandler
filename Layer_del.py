@@ -36,6 +36,7 @@ from qgis.core import (QgsApplication,
 from .resources import *
 from .library import *
 from .Layer_del_dialog import DeliveryDialog
+import time
 import os
 
 
@@ -71,6 +72,13 @@ def universal(layer, catalog, ilst, fld, lst):
     except IndexError:
         pass
     return lst
+
+
+def remove_old_file(path):
+    """Удаление старого файла"""
+    if os.path.exists(path) and os.path.isfile(path):
+        if time.time() - os.stat(path)[7] > 86400:
+            os.remove(path)
 
 
 def tr(msg):
@@ -163,12 +171,13 @@ class Delivery:
         self.dlg.OK.clicked.connect(self.apply)
         self.dlg.Cancel.clicked.connect(self.cancel)
         self.dlg.exportAll.clicked.connect(self.list_layer)
-        [self.set_crs(layer) for layer in self.instance.mapLayers().values() if layer.type() == 0]
+        self.dlg.crs.clicked.connect(self.set_crs)
         self.Projection.setCrs(self.instance.crs())
         self.dlg.tabWidget.setCurrentIndex(0)
         self.dlg.Shape.setChecked(True)
         self.choice_layer()
         self.list_layer()
+        remove_old_file(f"{self.plugin_dir}/values.tmp")
         self.values()
         self.dlg.show()
 
@@ -571,16 +580,20 @@ class Delivery:
 
     def lines(self, catalog, linelayer):
         """Объеденение линейных слоёв"""
-        processing.run("native:mergevectorlayers",
-                       {'CRS': QgsCoordinateReferenceSystem('EPSG:4326'),
-                        'LAYERS': linelayer,
-                        'OUTPUT': f"{catalog}/готово/Линейные объекты.shp"})
-        self.field(QgsVectorLayer(f"{catalog}/готово/Линейные объекты.shp", "Линейные объекты", "ogr"))
-        self.instance.addMapLayer(QgsVectorLayer(f"{catalog}/готово/Линейные объекты.shp", "Линейные объекты", "ogr"))
+        if len(linelayer) > 0:
+            processing.run("native:mergevectorlayers",
+                           {'CRS': QgsCoordinateReferenceSystem('EPSG:4326'),
+                            'LAYERS': linelayer,
+                            'OUTPUT': f"{catalog}/готово/Линейные объекты.shp"})
+            self.field(QgsVectorLayer(f"{catalog}/готово/Линейные объекты.shp", "Линейные объекты", "ogr"))
+            self.instance.addMapLayer(
+                QgsVectorLayer(f"{catalog}/готово/Линейные объекты.shp", "Линейные объекты", "ogr"))
 
-    def set_crs(self, layer):
+    def set_crs(self):
         """Установка для слоёв MIF СК WGS84"""
-        layer.setCrs(QgsCoordinateReferenceSystem('EPSG:4326')), layer.triggerRepaint()
+        for layer in self.instance.mapLayers().values():
+            if layer.type() == 0:
+                layer.setCrs(QgsCoordinateReferenceSystem('EPSG:4326')), layer.triggerRepaint()
 
     def write(self):
         "Запись значений в файл .tmp"
